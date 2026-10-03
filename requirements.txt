@@ -4,3 +4,5 @@ langchain-community
 langchain-ollama
 
 streamlit
+
+duckduckgo-search
