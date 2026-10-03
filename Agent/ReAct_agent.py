@@ -15,11 +15,18 @@ class data(TypedDict):
     usage: Annotated[list[str], "where it is used"]
 
 
-def search
+def search(query: str,) -> str:
+    """
+    Perform a DuckDuckGo search and return the results as a string.
+    """
+    search_tool = DuckDuckGoSearchResults()
+    results = search_tool.run(query)
+    return results
+
 agent = create_agent(
     model=model,
     system_prompt=tool_prompt,
-    tools=[DuckDuckGoSearchResults()],
+    tools=[search],
     state_schema=data,
 )
 
