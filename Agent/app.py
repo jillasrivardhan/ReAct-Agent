@@ -253,7 +253,7 @@ with st.sidebar:
 
         This application uses:
 
-        - 🧠 **Ollama**
+        - 🧠 **Gemini models**
         - 🔄 **LangGraph ReAct Agent**
         - 🔀 **RunnableBranch**
         - 🔎 **DuckDuckGo Search**

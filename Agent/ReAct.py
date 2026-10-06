@@ -11,6 +11,7 @@ from langchain_core.tools import tool
 
 from langchain.agents import create_agent
 from langchain_ollama import ChatOllama
+from langchain_google_genai import ChatGoogleGenerativeAI
 
 from prompts import (
     ROUTER_PROMPT,
@@ -23,9 +24,9 @@ from prompts import (
 # 1. LLM MODEL
 # ============================================================
 
-model = ChatOllama(
-    model="qwen2.5:3b",
-    temperature=0,
+model = ChatGoogleGenerativeAI(
+    model="gemini-2.5-flash",
+    temperature=0.2,
 )
 
 
