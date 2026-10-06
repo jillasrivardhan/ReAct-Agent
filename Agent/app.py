@@ -22,12 +22,10 @@ st.markdown(
     """
     <style>
 
-    /* Main container */
     .main {
         padding-top: 2rem;
     }
 
-    /* Header */
     .title {
         text-align: center;
         font-size: 42px;
@@ -42,7 +40,6 @@ st.markdown(
         margin-bottom: 30px;
     }
 
-    /* Info card */
     .info-card {
         padding: 18px;
         border-radius: 12px;
@@ -50,7 +47,6 @@ st.markdown(
         margin-bottom: 25px;
     }
 
-    /* Feature cards */
     .feature {
         padding: 15px;
         border-radius: 10px;
@@ -70,13 +66,16 @@ st.markdown(
 # ============================================================
 
 st.markdown(
-    '<div class="title">🤖 ReAct AI Assistant</div>',
+    '<div class="title">'
+    '🤖 ReAct AI Assistant'
+    '</div>',
     unsafe_allow_html=True,
 )
 
 st.markdown(
     '<div class="subtitle">'
-    'LangGraph ReAct Agent • Ollama • DuckDuckGo'
+    'LangGraph ReAct Agent • '
+    'OpenAI • DuckDuckGo'
     '</div>',
     unsafe_allow_html=True,
 )
@@ -98,11 +97,19 @@ st.markdown(
 
     <br><br>
 
-    🔹 <b>Direct Question</b> → Ollama LLM
+    🔹 <b>Direct Question</b>
+    → OpenAI GPT-4.1 Mini
 
     <br>
 
-    🔎 <b>Current / External Information</b> → LangGraph ReAct Agent → DuckDuckGo
+    🔎 <b>Current / External Information</b>
+    → LangGraph ReAct Agent
+    → DuckDuckGo Search
+
+    <br><br>
+
+    You provide your own OpenAI API key.
+    Your key is used for your current session.
 
     </div>
     """,
@@ -116,37 +123,55 @@ st.markdown(
 
 col1, col2, col3 = st.columns(3)
 
+
 with col1:
+
     st.markdown(
         """
         <div class="feature">
+
         🧠<br>
-        <b>Local LLM</b><br>
-        Ollama
+
+        <b>OpenAI</b><br>
+
+        GPT-4.1 Mini
+
         </div>
         """,
         unsafe_allow_html=True,
     )
+
 
 with col2:
+
     st.markdown(
         """
         <div class="feature">
+
         🔄<br>
+
         <b>ReAct Agent</b><br>
+
         LangGraph
+
         </div>
         """,
         unsafe_allow_html=True,
     )
 
+
 with col3:
+
     st.markdown(
         """
         <div class="feature">
+
         🔎<br>
+
         <b>Web Search</b><br>
+
         DuckDuckGo
+
         </div>
         """,
         unsafe_allow_html=True,
@@ -157,22 +182,129 @@ st.markdown("---")
 
 
 # ============================================================
+# SIDEBAR
+# ============================================================
+
+with st.sidebar:
+
+    st.title(
+        "⚙️ Settings"
+    )
+
+    # ========================================================
+    # API KEY INPUT
+    # ========================================================
+
+    st.subheader(
+        "🔑 OpenAI API Key"
+    )
+
+    user_api_key = st.text_input(
+        "Enter your OpenAI API key",
+        type="password",
+        placeholder="sk-...",
+        help=(
+            "Your API key is used only "
+            "for your current session."
+        ),
+    )
+
+    # --------------------------------------------------------
+    # API KEY STATUS
+    # --------------------------------------------------------
+
+    if user_api_key:
+
+        st.success(
+            "API key provided."
+        )
+
+    else:
+
+        st.warning(
+            "API key required."
+        )
+
+    st.caption(
+        "🔒 The application does not save "
+        "your API key to the project database."
+    )
+
+    st.markdown("---")
+
+    # ========================================================
+    # ABOUT
+    # ========================================================
+
+    st.markdown(
+        """
+        ### About
+
+        This application uses:
+
+        - 🧠 **OpenAI GPT-4.1 Mini**
+        - 🔄 **LangGraph ReAct Agent**
+        - 🔀 **RunnableBranch**
+        - 🔎 **DuckDuckGo Search**
+        - 💬 **Streamlit**
+
+        ### Routing
+
+        **DIRECT**
+
+        General questions are answered
+        directly by OpenAI.
+
+        **TOOL**
+
+        Questions requiring external
+        information are routed to
+        the ReAct agent.
+
+        The ReAct agent can call the
+        DuckDuckGo search tool when
+        necessary.
+
+        ---
+        """
+    )
+
+    # ========================================================
+    # CLEAR CHAT
+    # ========================================================
+
+    if st.button(
+        "🗑️ Clear Chat",
+        use_container_width=True,
+    ):
+
+        st.session_state.messages = []
+
+        st.rerun()
+
+
+# ============================================================
 # CHAT HISTORY
 # ============================================================
 
 if "messages" not in st.session_state:
+
     st.session_state.messages = []
 
 
 # ============================================================
-# DISPLAY PREVIOUS MESSAGES
+# DISPLAY CHAT HISTORY
 # ============================================================
 
 for message in st.session_state.messages:
 
-    with st.chat_message(message["role"]):
+    with st.chat_message(
+        message["role"]
+    ):
 
-        st.markdown(message["content"])
+        st.markdown(
+            message["content"]
+        )
 
 
 # ============================================================
@@ -190,7 +322,24 @@ user_input = st.chat_input(
 
 if user_input:
 
-    # Add user message
+    # --------------------------------------------------------
+    # API KEY CHECK
+    # --------------------------------------------------------
+
+    if not user_api_key:
+
+        st.warning(
+            "Please enter your OpenAI API key "
+            "in the sidebar first."
+        )
+
+        st.stop()
+
+
+    # --------------------------------------------------------
+    # SAVE USER MESSAGE
+    # --------------------------------------------------------
+
     st.session_state.messages.append(
         {
             "role": "user",
@@ -198,12 +347,27 @@ if user_input:
         }
     )
 
-    # Display user message
-    with st.chat_message("user"):
-        st.markdown(user_input)
 
-    # Generate response
-    with st.chat_message("assistant"):
+    # --------------------------------------------------------
+    # DISPLAY USER MESSAGE
+    # --------------------------------------------------------
+
+    with st.chat_message(
+        "user"
+    ):
+
+        st.markdown(
+            user_input
+        )
+
+
+    # --------------------------------------------------------
+    # GENERATE RESPONSE
+    # --------------------------------------------------------
+
+    with st.chat_message(
+        "assistant"
+    ):
 
         with st.spinner(
             "Thinking..."
@@ -211,11 +375,25 @@ if user_input:
 
             try:
 
-                response = ask(user_input)
+                # IMPORTANT:
+                #
+                # Pass the visitor's API key.
+                #
+                # NOT your API key.
+                #
+                response = ask(
+                    user_input,
+                    user_api_key,
+                )
 
-                st.markdown(response)
+                st.markdown(
+                    response
+                )
 
-                # Save assistant response
+                # ------------------------------------------------
+                # SAVE ASSISTANT MESSAGE
+                # ------------------------------------------------
+
                 st.session_state.messages.append(
                     {
                         "role": "assistant",
@@ -226,10 +404,13 @@ if user_input:
             except Exception as error:
 
                 error_message = (
-                    f"Something went wrong: {error}"
+                    f"Something went wrong: "
+                    f"{error}"
                 )
 
-                st.error(error_message)
+                st.error(
+                    error_message
+                )
 
                 st.session_state.messages.append(
                     {
@@ -237,48 +418,3 @@ if user_input:
                         "content": error_message,
                     }
                 )
-
-
-# ============================================================
-# SIDEBAR
-# ============================================================
-
-with st.sidebar:
-
-    st.title("⚙️ Settings")
-
-    st.markdown(
-        """
-        ### About
-
-        This application uses:
-
-        - 🧠 **Gemini models**
-        - 🔄 **LangGraph ReAct Agent**
-        - 🔀 **RunnableBranch**
-        - 🔎 **DuckDuckGo Search**
-        - 💬 **Streamlit**
-
-        ### Routing
-
-        **DIRECT**
-
-        General questions are answered directly by the local LLM.
-
-        **TOOL**
-
-        Questions requiring external information are routed to
-        the ReAct agent.
-
-        ---
-        """
-    )
-
-    if st.button(
-        "🗑️ Clear Chat",
-        use_container_width=True,
-    ):
-
-        st.session_state.messages = []
-
-        st.rerun()

@@ -1,17 +1,17 @@
-# agent.py
-
 from typing import Literal
 
 from ddgs import DDGS
 
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
-from langchain_core.runnables import (RunnableBranch,RunnableLambda,RunnablePassthrough)
+from langchain_core.runnables import (
+    RunnableBranch,
+    RunnableLambda,
+    RunnablePassthrough,
+)
 from langchain_core.tools import tool
 
 from langchain.agents import create_agent
-from langchain_ollama import ChatOllama
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
 
 from prompts import (
@@ -20,54 +20,77 @@ from prompts import (
     REACT_SYSTEM_PROMPT,
 )
 
-from dotenv import load_dotenv
-
-load_dotenv()
-
 
 # ============================================================
-# 1. LLM MODEL
+# 1. CREATE OPENAI MODEL
+# ============================================================
+# IMPORTANT:
+# Do NOT create ChatOpenAI outside a function.
+#
+# The user enters their own API key in Streamlit.
+# This function creates the model only AFTER receiving
+# that user's API key.
 # ============================================================
 
-model = ChatOpenAI(
-    model="gpt-4.1-mini",
-    temperature=0,
-    max_retries=1,
-    timeout=30
-)
+def get_model(api_key: str):
+
+    if not api_key:
+        raise ValueError(
+            "OpenAI API key is required."
+        )
+
+    return ChatOpenAI(
+        model="gpt-4.1-mini",
+        api_key=api_key,
+        temperature=0,
+        max_retries=1,
+        timeout=30,
+    )
 
 
 # ============================================================
 # 2. ROUTER CHAIN
 # ============================================================
 
-router_prompt = ChatPromptTemplate.from_template(
-    ROUTER_PROMPT
-)
+def create_router_chain(api_key: str):
 
-router_chain = (
-    router_prompt
-    | model
-    | StrOutputParser()
-)
+    model = get_model(api_key)
+
+    router_prompt = ChatPromptTemplate.from_template(
+        ROUTER_PROMPT
+    )
+
+    router_chain = (
+        router_prompt
+        | model
+        | StrOutputParser()
+    )
+
+    return router_chain
 
 
 # ============================================================
 # 3. DIRECT LLM CHAIN
 # ============================================================
 
-direct_prompt = ChatPromptTemplate.from_messages(
-    [
-        ("system", DIRECT_SYSTEM_PROMPT),
-        ("human", "{question}"),
-    ]
-)
+def create_direct_chain(api_key: str):
 
-direct_chain = (
-    direct_prompt
-    | model
-    | StrOutputParser()
-)
+    model = get_model(api_key)
+
+    direct_prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", DIRECT_SYSTEM_PROMPT),
+            ("human", "{question}"),
+        ]
+    )
+
+    direct_chain = (
+        direct_prompt
+        | model
+        | StrOutputParser()
+    )
+
+    return direct_chain
 
 
 # ============================================================
@@ -79,8 +102,13 @@ def search(query: str) -> str:
     """
     Search DuckDuckGo for current or external information.
 
-    Args:
-        query: A plain text search query.
+    Use this tool when the user asks for:
+    - Current information
+    - Latest information
+    - News
+    - Recent releases
+    - External information
+    - Information that may have changed
     """
 
     if not isinstance(query, str):
@@ -92,6 +120,7 @@ def search(query: str) -> str:
         return "Search query cannot be empty."
 
     try:
+
         results = DDGS().text(
             query=query,
             max_results=3
@@ -103,57 +132,118 @@ def search(query: str) -> str:
         formatted_results = []
 
         for result in results:
-            formatted_results.append(
-                f"Title: {result.get('title', '')}\n"
-                f"URL: {result.get('href', '')}\n"
-                f"Content: {result.get('body', '')}"
+
+            title = result.get(
+                "title",
+                ""
             )
 
-        return "\n\n".join(formatted_results)
+            url = result.get(
+                "href",
+                ""
+            )
+
+            body = result.get(
+                "body",
+                ""
+            )
+
+            formatted_results.append(
+                f"Title: {title}\n"
+                f"URL: {url}\n"
+                f"Content: {body}"
+            )
+
+        return "\n\n".join(
+            formatted_results
+        )
 
     except Exception as error:
-        return f"Search failed: {error}"
 
-tools = [search]
+        return (
+            f"Search failed: {error}"
+        )
+
+
+tools = [
+    search
+]
 
 
 # ============================================================
-# 5. LANGCHAIN REACT AGENT
+# 5. CREATE REACT AGENT
 # ============================================================
 
-react_agent = create_agent(
-    model=model,
-    tools=tools,
-    system_prompt=REACT_SYSTEM_PROMPT,
-)
+def create_react_agent(
+    api_key: str
+):
+
+    model = get_model(
+        api_key
+    )
+
+    agent = create_agent(
+        model=model,
+        tools=tools,
+        system_prompt=REACT_SYSTEM_PROMPT,
+    )
+
+    return agent
 
 
 # ============================================================
 # 6. RUN REACT AGENT
 # ============================================================
 
-def run_react_agent(inputs: dict) -> str:
-    """
-    Run the ReAct agent and return the final AI response.
-    """
+def run_react_agent(
+    inputs: dict
+) -> str:
 
-    result = react_agent.invoke(
+    question = inputs[
+        "question"
+    ]
+
+    api_key = inputs[
+        "api_key"
+    ]
+
+    if not api_key:
+        raise ValueError(
+            "OpenAI API key is required."
+        )
+
+    # Create the ReAct agent using
+    # THIS USER'S API KEY.
+    agent = create_react_agent(
+        api_key
+    )
+
+    result = agent.invoke(
         {
             "messages": [
                 {
                     "role": "user",
-                    "content": inputs["question"],
+                    "content": question,
                 }
             ]
         }
     )
 
-    messages = result.get("messages", [])
+    messages = result.get(
+        "messages",
+        []
+    )
 
-    # Find the last AI message that is not requesting a tool call.
-    for message in reversed(messages):
+    # Get the last AI response
+    for message in reversed(
+        messages
+    ):
 
-        if getattr(message, "type", None) == "ai":
+        if getattr(
+            message,
+            "type",
+            None
+        ) == "ai":
 
             tool_calls = getattr(
                 message,
@@ -161,20 +251,63 @@ def run_react_agent(inputs: dict) -> str:
                 []
             )
 
+            # We want the final AI response,
+            # not an AI message requesting a tool.
             if not tool_calls:
 
                 content = message.content
 
-                # Usually content is a string.
-                if isinstance(content, str):
+                if isinstance(
+                    content,
+                    str
+                ):
+
                     return content
 
-                # Handle structured content if returned.
-                return str(content)
+                # Handle structured content
+                if isinstance(
+                    content,
+                    list
+                ):
 
-    return "The agent could not produce a final answer."
+                    text_parts = []
+
+                    for part in content:
+
+                        if isinstance(
+                            part,
+                            dict
+                        ):
+
+                            if part.get(
+                                "type"
+                            ) == "text":
+
+                                text_parts.append(
+                                    part.get(
+                                        "text",
+                                        ""
+                                    )
+                                )
+
+                    if text_parts:
+
+                        return "\n".join(
+                            text_parts
+                        )
+
+                return str(
+                    content
+                )
+
+    return (
+        "The agent could not "
+        "produce a final answer."
+    )
 
 
+# Convert the function into
+# a Runnable.
 react_chain = RunnableLambda(
     run_react_agent
 )
@@ -186,123 +319,232 @@ react_chain = RunnableLambda(
 
 def normalize_route(
     value: str
-) -> Literal["TOOL", "DIRECT"]:
-    """
-    Normalize the router response.
-
-    TOOL   -> Use the ReAct agent.
-    DIRECT -> Use the normal LLM.
-    """
+) -> Literal[
+    "TOOL",
+    "DIRECT"
+]:
 
     route = value.strip().upper()
 
-    if route.startswith("TOOL"):
+    if route.startswith(
+        "TOOL"
+    ):
+
         return "TOOL"
 
     return "DIRECT"
 
 
 # ============================================================
-# 8. ADD ROUTE TO INPUT
+# 8. CREATE COMPLETE ROUTING CHAIN
 # ============================================================
 
-routing_chain = RunnablePassthrough.assign(
-    route=(
-        router_chain
-        | RunnableLambda(normalize_route)
+def create_chain(
+    api_key: str
+):
+
+    if not api_key:
+
+        raise ValueError(
+            "OpenAI API key is required."
+        )
+
+    # Router uses user's API key
+    router_chain = create_router_chain(
+        api_key
     )
-)
+
+    # Direct chain uses user's API key
+    direct_chain = create_direct_chain(
+        api_key
+    )
+
+    # Add route to the existing input.
+    #
+    # The input remains:
+    #
+    # {
+    #     "question": "...",
+    #     "api_key": "..."
+    # }
+    #
+    # and gets:
+    #
+    # {
+    #     "question": "...",
+    #     "api_key": "...",
+    #     "route": "DIRECT/TOOL"
+    # }
+
+    routing_chain = (
+        RunnablePassthrough.assign(
+            route=(
+                router_chain
+                | RunnableLambda(
+                    normalize_route
+                )
+            )
+        )
+    )
+
+    # ========================================================
+    # ROUTING
+    # ========================================================
+
+    branch = RunnableBranch(
+
+        # ----------------------------------------------------
+        # TOOL ROUTE
+        # ----------------------------------------------------
+
+        (
+            lambda x:
+                x["route"] == "TOOL",
+
+            react_chain,
+        ),
+
+        # ----------------------------------------------------
+        # DEFAULT = DIRECT
+        # ----------------------------------------------------
+
+        direct_chain,
+    )
+
+    # ========================================================
+    # COMPLETE PIPELINE
+    # ========================================================
+
+    chain = (
+        routing_chain
+        | branch
+    )
+
+    return chain
 
 
 # ============================================================
-# 9. RUNNABLE BRANCH
+# 9. MAIN ASK FUNCTION
 # ============================================================
 
-branch = RunnableBranch(
-    (
-        lambda x: x["route"] == "TOOL",
-        react_chain,
-    ),
-    direct_chain,
-)
+def ask(
+    question: str,
+    api_key: str
+) -> str:
 
+    if not question:
+        raise ValueError(
+            "Question cannot be empty."
+        )
 
-# ============================================================
-# 10. COMPLETE ROUTING PIPELINE
-# ============================================================
+    if not api_key:
+        raise ValueError(
+            "OpenAI API key is required."
+        )
 
-chain = routing_chain | branch
+    # Create the complete chain using
+    # the current user's API key.
+    chain = create_chain(
+        api_key
+    )
 
-
-# ============================================================
-# 11. MAIN ASK FUNCTION
-# ============================================================
-
-def ask(question: str) -> str:
-    """
-    Send a question to the routing pipeline.
-
-    The router decides whether:
-    - DIRECT -> normal LLM
-    - TOOL   -> LangGraph ReAct agent
-    """
-
-    return chain.invoke(
+    # Send both question and API key
+    # through the pipeline.
+    response = chain.invoke(
         {
-            "question": question
+            "question": question,
+            "api_key": api_key,
         }
     )
 
+    return response
+
 
 # ============================================================
-# 12. CLI APPLICATION
+# 10. CLI APPLICATION
 # ============================================================
 
 def main():
 
     print("=" * 60)
-    print("        LangGraph ReAct Research Assistant")
+
+    print(
+        "       LangGraph ReAct Research Assistant"
+    )
+
     print("=" * 60)
-    print("Ask a question.")
-    print("Type 'exit', 'quit', or 'bye' to stop.")
+
+    print(
+        "\nEnter your OpenAI API key."
+    )
+
+    api_key = input(
+        "OpenAI API Key: "
+    ).strip()
+
+    if not api_key:
+
+        print(
+            "\nOpenAI API key is required."
+        )
+
+        return
+
+    print(
+        "\nAsk a question."
+    )
+
+    print(
+        "Type 'exit', 'quit', or 'bye' to stop."
+    )
+
     print("=" * 60)
 
     while True:
 
-        user_input = input("\nYou: ").strip()
+        user_input = input(
+            "\nYou: "
+        ).strip()
 
-        # ----------------------------------------
-        # Exit condition
-        # ----------------------------------------
+        # ----------------------------------------------------
+        # EXIT
+        # ----------------------------------------------------
 
         if user_input.lower() in {
             "exit",
             "quit",
-            "bye"
+            "bye",
         }:
 
-            print("\nAssistant: Goodbye!")
+            print(
+                "\nAssistant: Goodbye!"
+            )
+
             break
 
-        # ----------------------------------------
-        # Empty input
-        # ----------------------------------------
+        # ----------------------------------------------------
+        # EMPTY INPUT
+        # ----------------------------------------------------
 
         if not user_input:
 
             print(
-                "Assistant: Please enter a question."
+                "Assistant: "
+                "Please enter a question."
             )
 
             continue
 
-        # ----------------------------------------
-        # Run agent
-        # ----------------------------------------
+        # ----------------------------------------------------
+        # RUN
+        # ----------------------------------------------------
 
         try:
 
-            answer = ask(user_input)
+            answer = ask(
+                user_input,
+                api_key
+            )
 
             print(
                 f"\nAssistant: {answer}"
@@ -316,8 +558,9 @@ def main():
 
 
 # ============================================================
-# 13. ENTRY POINT
+# 11. ENTRY POINT
 # ============================================================
 
 if __name__ == "__main__":
+
     main()
