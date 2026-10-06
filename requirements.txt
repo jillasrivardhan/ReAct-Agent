@@ -2,9 +2,12 @@ langchain
 langchain-core
 langchain-community
 langchain-google-genai>=4.0.0
+langchain-openai
 langchain-ollama
 
 streamlit
+
+python-dotenv
 
 duckduckgo-search
 ddgs

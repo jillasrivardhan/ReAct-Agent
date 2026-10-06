@@ -12,6 +12,7 @@ from langchain_core.tools import tool
 from langchain.agents import create_agent
 from langchain_ollama import ChatOllama
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_openai import ChatOpenAI
 
 from prompts import (
     ROUTER_PROMPT,
@@ -19,14 +20,20 @@ from prompts import (
     REACT_SYSTEM_PROMPT,
 )
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 
 # ============================================================
 # 1. LLM MODEL
 # ============================================================
 
-model = ChatGoogleGenerativeAI(
-    model="gemini-2.5-flash",
-    temperature=0.2,
+model = ChatOpenAI(
+    model="gpt-4.1-mini",
+    temperature=0,
+    max_retries=1,
+    timeout=30
 )
 
 
