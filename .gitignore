@@ -8,4 +8,4 @@ wheels/
 
 # Virtual environments
 ReAct
-
+.env
